@@ -1,0 +1,38 @@
+# Editor and local user settings
+.vscode/
+MDK-ARM/.vscode/
+MDK-ARM/.eide/
+MDK-ARM/.cmsis/
+MDK-ARM/*.uvguix.*
+MDK-ARM/*.uvoptx
+
+# Keil build output
+MDK-ARM/HAL_Robot/
+MDK-ARM/*.log
+MDK-ARM/*.lst
+*.o
+*.obj
+*.d
+*.dep
+*.crf
+*.lnp
+*.axf
+*.elf
+*.hex
+*.bin
+*.map
+
+# Temporary and backup files
+*.bak
+*.tmp
+*.orig
+*.rej
+*~
+
+# OS metadata
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Legacy notes from the former legged-hero project
+Serial_Leg_Hero_Debugging_Log.md
