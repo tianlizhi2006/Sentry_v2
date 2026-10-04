@@ -734,11 +734,6 @@
               <FileType>8</FileType>
               <FilePath>..\Algorithm\algorithm_user_lib.cpp</FilePath>
             </File>
-            <File>
-              <FileName>chassis_power_control.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\Algorithm\chassis_power_control.cpp</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>

@@ -106,9 +106,8 @@ typedef enum
 	DM_Gimbal_LargeYaw_Read_ID = 0x30,
 	DM_Gimbal_Pitch_Read_ID    = 0x15,
 	
-	/*超级电容*/
-	CAN_CAP_GET_ID  = 0x301,
-	CAN_CAP_SENT_ID = 0x311,
+	/*功率控制板，沿用原板卡 CAN 协议 ID*/
+	CAN_POWER_BOARD_GET_ID  = 0x301,
 	
 } can_msg_id_e;
 
@@ -207,7 +206,7 @@ public:
 		LIMIT.KP_MAX=KP_MAX;
 		LIMIT.KD_MIN=KD_MIN;
 		LIMIT.KD_MAX=KD_MAX;
-		DM_Motor_Measure = new DM_Motor_measure_t;
+		DM_Motor_Measure = new DM_Motor_measure_t(); // 反馈到来前 state 必须为 0
 	}
 	const DM_Motor_measure_t *Get_DM_Motor_Measure_Pointer(void)
 	{

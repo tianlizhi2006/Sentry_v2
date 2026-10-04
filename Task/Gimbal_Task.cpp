@@ -80,9 +80,11 @@ void Gimbal_Ctrl::Init(void)
              TRIGGER_SPEED_PID_KP, TRIGGER_SPEED_PID_KI, TRIGGER_SPEED_PID_KD,
              TRIGGER_SPEED_PID_MAX_OUT, TRIGGER_SPEED_PID_MAX_IOUT, TRIGGER_SPEED_PID_BAND_I);
 
-    // DM 电机上电后需要使能；DJI 小 Yaw 无需使能帧。
-    CAN_Cmd.DM_Motor_Enable(&CAN_Cmd.GimbalLargeYaw);
-    CAN_Cmd.DM_Motor_Enable(&CAN_Cmd.GimbalPitch);
+    // DM 使能由 Send() 按反馈状态持续检查，启动时首次尝试。
+    LargeYaw.last_enable_attempt_tick = 0U;
+    Pitch.last_enable_attempt_tick = 0U;
+    LargeYaw.enable_attempted = false;
+    Pitch.enable_attempted = false;
 
     Mode = GIMBAL_NO_MOVE;
     Last_Mode = GIMBAL_NO_MOVE;
@@ -215,9 +217,27 @@ void Gimbal_Ctrl::Control(void)
         : -Deadband(RC_Ptr->rc.ch[GIMBAL_PITCH_CHANNEL], GIMBAL_RC_DEADLINE)
             * GIMBAL_PITCH_RC_SENSITIVITY;
 
-    Pitch.angle_set -= pitch_delta;
-    //约束pitch角度
-    Pitch.angle_set = fp32_constrain(Pitch.angle_set, GIMBAL_PITCH_MIN_ANGLE, GIMBAL_PITCH_MAX_ANGLE);
+    const float requested_pitch = Pitch.angle_set - pitch_delta;
+    if (Pitch.angle > GIMBAL_PITCH_MAX_ANGLE)
+    {
+        // Above the upper stop, accept only inward (decreasing) commands.
+        // Follow any inward motion so the target cannot pull the axis back out.
+        Pitch.angle_set = requested_pitch < Pitch.angle_set ? requested_pitch : Pitch.angle_set;
+        if (Pitch.angle_set > Pitch.angle) Pitch.angle_set = Pitch.angle;
+        if (Pitch.angle_set < GIMBAL_PITCH_MIN_ANGLE) Pitch.angle_set = GIMBAL_PITCH_MIN_ANGLE;
+    }
+    else if (Pitch.angle < GIMBAL_PITCH_MIN_ANGLE)
+    {
+        // Below the lower stop, accept only inward (increasing) commands.
+        Pitch.angle_set = requested_pitch > Pitch.angle_set ? requested_pitch : Pitch.angle_set;
+        if (Pitch.angle_set < Pitch.angle) Pitch.angle_set = Pitch.angle;
+        if (Pitch.angle_set > GIMBAL_PITCH_MAX_ANGLE) Pitch.angle_set = GIMBAL_PITCH_MAX_ANGLE;
+    }
+    else
+    {
+        Pitch.angle_set = fp32_constrain(requested_pitch,
+            GIMBAL_PITCH_MIN_ANGLE, GIMBAL_PITCH_MAX_ANGLE);
+    }
 
     // 小 Yaw 软限幅采用滞回：超过 1000 ECD（约 44°）冻结目标，
     // 待大 Yaw 将其拉回 500 ECD（约 22°）内再重新接受遥控输入。
@@ -260,8 +280,39 @@ void Gimbal_Ctrl::Control(void)
 
 }
 
+void Gimbal_Ctrl::RecoverDmMotors(void)
+{
+    const uint32_t now = xTaskGetTickCount();
+    if (LargeYaw.measure->state == 1U)
+    {
+        LargeYaw.enable_attempted = false;
+    }
+    else if (!LargeYaw.enable_attempted
+        || (now - LargeYaw.last_enable_attempt_tick) >= GIMBAL_DM_ENABLE_RETRY_MS)
+    {
+        CAN_Cmd.DM_Motor_clear_error(&CAN_Cmd.GimbalLargeYaw);
+        CAN_Cmd.DM_Motor_Enable(&CAN_Cmd.GimbalLargeYaw);
+        LargeYaw.last_enable_attempt_tick = now;
+        LargeYaw.enable_attempted = true;
+    }
+
+    if (Pitch.measure->state == 1U)
+    {
+        Pitch.enable_attempted = false;
+    }
+    else if (!Pitch.enable_attempted
+        || (now - Pitch.last_enable_attempt_tick) >= GIMBAL_DM_ENABLE_RETRY_MS)
+    {
+        CAN_Cmd.DM_Motor_clear_error(&CAN_Cmd.GimbalPitch);
+        CAN_Cmd.DM_Motor_Enable(&CAN_Cmd.GimbalPitch);
+        Pitch.last_enable_attempt_tick = now;
+        Pitch.enable_attempted = true;
+    }
+}
+
 void Gimbal_Ctrl::Send(void)
 {
+    RecoverDmMotors();
     // 无力模式发送显式零指令，避免保留上一周期输出。
     if (Mode == GIMBAL_NO_MOVE)
     {
@@ -274,9 +325,11 @@ void Gimbal_Ctrl::Send(void)
     }
 
     // DM4310 大 Yaw/Pitch 使用 MIT 力矩前馈；GM6020 小 Yaw 位于 0x1FF 帧的第二个电流槽。
-    CAN_Cmd.DM_SendData(&CAN_Cmd.GimbalLargeYaw, 0, 0, 0, 0, LargeYaw.torque_set);
+    CAN_Cmd.DM_SendData(&CAN_Cmd.GimbalLargeYaw, 0, 0, 0, 0,
+        LargeYaw.measure->state == 1U ? LargeYaw.torque_set : 0.0f);
     CAN_Cmd.SendData(&CAN_Cmd.GimbalSmallYaw, 0, SmallYaw.give_current);
-    CAN_Cmd.DM_SendData(&CAN_Cmd.GimbalPitch, 0, 0, 0, 0, Pitch.torque_set);
+    CAN_Cmd.DM_SendData(&CAN_Cmd.GimbalPitch, 0, 0, 0, 0,
+        Pitch.measure->state == 1U ? Pitch.torque_set : 0.0f);
     CAN_Cmd.SendData(&CAN_Cmd.Fric, Fric1.give_current, Fric2.give_current);
     CAN_Cmd.SendData(&CAN_Cmd.Trigger, Trigger.give_current);
 }

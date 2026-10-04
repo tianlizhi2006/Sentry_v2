@@ -18,7 +18,6 @@
 #include "algorithm_user_lib.h"
 
 #include "drivers_statistic.h"
-#include "chassis_power_control.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -67,12 +66,6 @@ typedef struct
 
 } Chassis_Motor_t; // 3508 底盘电机数据
 
-typedef struct
-{
-	bool CAP_ENERGY_STOP; 
-
-} Chassis_Ctrl_Flags_t; // 底盘控制标志位
-
 typedef enum
 {
 	CHASSIS_NO_MOVE = 0,
@@ -116,12 +109,10 @@ public:
 	Chassis_Motor_t Motor[4];
 
 
-	PowerClass Power_Ctrl;
 	sPidTypeDef Motor_Speed_Pid[4];
 	
 
 	Chassis_Velocity_t Velocity;
-	Chassis_Ctrl_Flags_t Flags;
 
 	chassis_mode_e Mode;
 	bool KeyboardLittleTop;      // 键鼠模式下 C 键切换小陀螺

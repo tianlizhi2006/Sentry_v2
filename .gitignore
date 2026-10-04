@@ -28,6 +28,8 @@ MDK-ARM/*.lst
 *.orig
 *.rej
 *~
+__pycache__/
+*.pyc
 
 # OS metadata
 Thumbs.db

@@ -9,29 +9,33 @@
 
 Chassis_Ctrl Chassis;
 
-static void Send_SuperCap_Command(void)
+// VOFA+ JustFloat: four little-endian float32 values followed by 00 00 80 7F.
+// Keep the buffer alive until the UART10 transmit interrupt completes.
+static void Send_Chassis_Power_VOFA(void)
 {
-	uint8_t command[8] = {0};
-	bool cap_ready = Message.SuperCapR.situation == CAP_CLOSE || Message.SuperCapR.situation == CAP_OPEN;
-	if (Chassis.Mode != CHASSIS_NO_MOVE && cap_ready)
+	static uint8_t frame[4U * 4U + 4U];
+	static uint32_t last_tick = 0U;
+	const uint32_t now = xTaskGetTickCount();
+	if ((now - last_tick) < pdMS_TO_TICKS(CHASSIS_POWER_VOFA_PERIOD_MS)
+		|| huart10.gState != HAL_UART_STATE_READY)
 	{
-		command[0] = 0xff;
+		return;
 	}
-	else
-	{
-		command[0] = 0x00;
-	}
+	last_tick = now;
 
-	if (Chassis.Flags.CAP_ENERGY_STOP)
-	{
-		command[1] = 0x00;
-	}
-	else
-	{
-		command[1] = 0xff;
-	}
-	command[3] = (uint8_t)(CHASSIS_POWER_LIMIT_W - 5.0f);
-	CAN_Cmd.SendData(&hfdcan1, CAN_CAP_SENT_ID, command, sizeof(command));
+	const bool feedback_ready = Message.PowerBoardFeedbackReady();
+	const float channels[4] = {
+		feedback_ready ? Message.PowerBoardR.power_out : 0.0f,
+		feedback_ready ? Message.PowerBoardR.power : 0.0f,
+		feedback_ready ? (float)Message.PowerBoardR.power_limit : 0.0f,
+		feedback_ready ? 1.0f : 0.0f
+	};
+	memcpy(frame, channels, sizeof(channels));
+	frame[16] = 0x00;
+	frame[17] = 0x00;
+	frame[18] = 0x80;
+	frame[19] = 0x7f;
+	(void)HAL_UART_Transmit_IT(&huart10, frame, sizeof(frame));
 }
 
 void Chassis_Task(void *argument)
@@ -53,8 +57,6 @@ void Chassis_Task(void *argument)
 		
 
 
-		Send_SuperCap_Command();
-
 		if(Chassis.Mode == CHASSIS_NO_MOVE)
 		{
 			CAN_Cmd.SendData(&CAN_Cmd.Chassis, 0, 0, 0, 0);
@@ -67,6 +69,7 @@ void Chassis_Task(void *argument)
 				Chassis.Motor[2].give_current,
 				Chassis.Motor[3].give_current);
 		}
+		Send_Chassis_Power_VOFA();
 
 		
 		
@@ -157,7 +160,6 @@ void Chassis_Ctrl::Feedback_Update(void)
 	IMU_Data.Acce_X = (float)Message.MPU_DataZ.Acce_X.int_16 / 1000.0f;
 	IMU_Data.Acce_Z = (float)Message.MPU_DataZ.Acce_Z.int_16 / 1000.0f;
 	
-	Power_Ctrl.Power_Feedback_Update();
 	Feed_Back_dt = DWT_GetDeltaT(&Feed_Back_Count);
 }
 
@@ -223,10 +225,6 @@ void Chassis_Ctrl::Flag_Behaviour_Control()
 	}
 }
 
-//功率环权重
-float Power_Set_KP_X = 0.15;
-float Power_Set_KP_Y = 0.12;
-
 // 遥控器的数据处理成底盘的前进vx速度，vy速度
 void Chassis_Ctrl::RC_to_Control(fp32 *vx_set, fp32 *vy_set)
 {
@@ -235,27 +233,26 @@ void Chassis_Ctrl::RC_to_Control(fp32 *vx_set, fp32 *vy_set)
 
 	if (switch_is_up(RC_Ptr->rc.s[CHANNEL_LEFT]) && switch_is_up(RC_Ptr->rc.s[CHANNEL_RIGHT]))
 	{
-		const fp32 keyboard_speed_scale = sqrt(Power_Ctrl.Power_limit.Chassis_Max_power);
 		*vx_set = 0.0f;
 		*vy_set = 0.0f;
 
 		// 按实车方向修正 WASD 输入：W 前、S 后、A 左、D 右。
 		if ((RC_Ptr->key.v & KEY_PRESSED_OFFSET_W) && !(RC_Ptr->key.v & KEY_PRESSED_OFFSET_S))
 		{
-			*vx_set = -Power_Set_KP_X * keyboard_speed_scale;
+			*vx_set = -CHASSIS_RC_MAX_VX_MPS;
 		}
 		else if ((RC_Ptr->key.v & KEY_PRESSED_OFFSET_S) && !(RC_Ptr->key.v & KEY_PRESSED_OFFSET_W))
 		{
-			*vx_set = Power_Set_KP_X * keyboard_speed_scale;
+			*vx_set = CHASSIS_RC_MAX_VX_MPS;
 		}
 
 		if ((RC_Ptr->key.v & KEY_PRESSED_OFFSET_A) && !(RC_Ptr->key.v & KEY_PRESSED_OFFSET_D))
 		{
-			*vy_set = -Power_Set_KP_Y * keyboard_speed_scale;
+			*vy_set = -CHASSIS_RC_MAX_VY_MPS;
 		}
 		else if ((RC_Ptr->key.v & KEY_PRESSED_OFFSET_D) && !(RC_Ptr->key.v & KEY_PRESSED_OFFSET_A))
 		{
-			*vy_set = Power_Set_KP_Y * keyboard_speed_scale;
+			*vy_set = CHASSIS_RC_MAX_VY_MPS;
 		}
 		return;
 	}
@@ -265,17 +262,14 @@ void Chassis_Ctrl::RC_to_Control(fp32 *vx_set, fp32 *vy_set)
 	rc_deadline_limit(RC_Ptr->rc.ch[CHASSIS_X_CHANNEL], vx_channel, CHASSIS_RC_DEADLINE);
 	rc_deadline_limit(RC_Ptr->rc.ch[CHASSIS_Y_CHANNEL], vy_channel, CHASSIS_RC_DEADLINE);
 
-	const fp32 power_speed_scale = sqrt(Power_Ctrl.Power_limit.Chassis_Max_power) / 660.0f;
-	const fp32 vx_set_channel = vx_channel * Power_Set_KP_X * power_speed_scale;
-	const fp32 vy_set_channel = vy_channel * Power_Set_KP_Y * power_speed_scale;
+	const fp32 vx_set_channel = vx_channel * CHASSIS_RC_MAX_VX_MPS / 660.0f;
+	const fp32 vy_set_channel = vy_channel * CHASSIS_RC_MAX_VY_MPS / 660.0f;
 
 	// DR16 左摇杆：ch3 向前推时的原始符号与底盘 +X 相反，因此前后输入在这里取反。
 	// ch2 直接作为云台坐标系的左右平移量
 	*vx_set = -vx_set_channel;
 	*vy_set = vy_set_channel;
 }
-
-static const fp32 LITTLE_TOP_POWER_SCALE = 0.14f;
 
 void Chassis_Ctrl::Behaviour_Control(fp32 *vx_set, fp32 *vy_set, fp32 *angle_set)
 {
@@ -287,20 +281,15 @@ void Chassis_Ctrl::Behaviour_Control(fp32 *vx_set, fp32 *vy_set, fp32 *angle_set
 	}
 	else if (Mode == CHASSIS_NORMAL_MODE)
 	{
-		Power_Set_KP_X = 0.15;
-		Power_Set_KP_Y = 0.12;
 		RC_to_Control(vx_set, vy_set);
 		*angle_set = 0.0f;
 	}
 	else if (Mode == CHASSIS_LITTLE_TOP)
 	{
 		const fp32 turn_weight = 1.0f
-			- (abs(RC_Ptr->rc.ch[CHASSIS_X_CHANNEL]) + abs(RC_Ptr->rc.ch[CHASSIS_Y_CHANNEL])) / 1980.0f;
-		Power_Set_KP_X = 0.15f;
-		Power_Set_KP_Y = 0.12f;
+			- (abs(RC_Ptr->rc.ch[CHASSIS_X_CHANNEL]) + abs(RC_Ptr->rc.ch[CHASSIS_Y_CHANNEL])) / 1320.0f;//shit_001
 		RC_to_Control(vx_set, vy_set);
-		*angle_set = LITTLE_TOP_POWER_SCALE * sqrt(Power_Ctrl.Power_limit.Chassis_Max_power)
-			* turn_weight / MOTOR_DISTANCE_TO_CENTER;
+		*angle_set = CHASSIS_LITTLE_TOP_MAX_WZ_RADPS * turn_weight;
 	}
 }
 
@@ -373,15 +362,15 @@ void Chassis_Ctrl::Control_loop(void)
 	uint8_t i = 0;
 
 	Vector_to_Wheel_Speed(&Velocity.vx_set, &Velocity.vy_set, &Velocity.wz_set);
-		
+
 	// 3508 轮速 PID，输出为 C620 电流指令。
 	for(i = 0; i < 4; i++)
 	{
 		PID.Calc(&Motor_Speed_Pid[i], Motor[i].speed, Motor[i].speed_set);
 		Motor[i].give_current = (int16_t)fp32_constrain(
 			Motor_Speed_Pid[i].out,
-			-CHASSIS_3508_SPEED_PID_MAX_OUT,
-			 CHASSIS_3508_SPEED_PID_MAX_OUT);
+		   -CHASSIS_3508_SPEED_PID_MAX_OUT,
+		    CHASSIS_3508_SPEED_PID_MAX_OUT);
 	}
 }
 

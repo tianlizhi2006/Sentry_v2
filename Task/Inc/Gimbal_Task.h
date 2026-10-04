@@ -29,6 +29,7 @@ void Gimbal_Task(void *argument);
 
 // 任务周期和 DR16 通道映射。
 #define GIMBAL_CONTROL_TIME_MS 1  // 1 kHz 控制周期
+#define GIMBAL_DM_ENABLE_RETRY_MS 50U // 未使能时每 50 ms 清错并重新使能
 #define GIMBAL_YAW_CHANNEL     0  // 右摇杆水平
 #define GIMBAL_PITCH_CHANNEL   1  // 右摇杆竖直
 #define GIMBAL_RIGHT_SWITCH    0  // 右拨杆下档为无力
@@ -39,6 +40,8 @@ void Gimbal_Task(void *argument);
 struct GimbalDMMotor
 {
     const DM_Motor_measure_t *measure; // CAN 反馈指针
+    uint32_t last_enable_attempt_tick;
+    bool enable_attempted;
     float angle;                       // deg，控制反馈角度
     float speed;                       // rad/s
     float speed_set;                   // rad/s，送入速度环的实际目标
@@ -126,6 +129,7 @@ private:
     void Launcher_Behaviour(void);
     void Launcher_Control(void);
     void Launcher_Reset(void);
+    void RecoverDmMotors(void);
 };
 
 extern Gimbal_Ctrl Gimbal;

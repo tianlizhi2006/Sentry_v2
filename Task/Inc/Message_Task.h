@@ -34,9 +34,6 @@ extern QueueHandle_t CAN3_Rx_Queue;
 extern QueueHandle_t Serial_Rx_Queue;
 extern QueueHandle_t DR16_Rx_Queue;
 
-#define CAP_CLOSE 0x0f
-#define CAP_OPEN  0xf0
-
 #define FP32_MPU_RAD          0.005494505494505494f
 #define BMI088_GYRO_2000_SEN 0.0010652644360316953f
 #define ANGLE_TO_RAD          0.017453292519943295f
@@ -86,22 +83,21 @@ struct Gimbal_Gyro_Data_t
     int32_t Yaw_cycle;
 };
 
-struct supercap_Receive_Data_t
+struct power_board_receive_data_t
 {
     uint8_t situation;
     uint8_t mode;
     float power;
-    float power_all;
-    uint8_t energy;
+    float power_out;
     uint8_t power_limit;
-    uint32_t Motor_Message_count;
-    float Motor_Messagr_dt;
+    uint32_t feedback_dwt_count;
+    float feedback_dt;
 };
 
 class Message_Ctrl : public Statistic
 {
 public:
-    supercap_Receive_Data_t SuperCapR;
+    power_board_receive_data_t PowerBoardR;
     MPU_Data_tZ MPU_DataZ;
     MPU_Data_tXY MPU_DataXY;
     Gimbal_IMU_Data_t GimbalIMU;
@@ -110,6 +106,9 @@ public:
     uint32_t GimbalFeedbackTick[4];
     bool ShooterFeedbackReceived[3]; // 摩擦轮1、摩擦轮2、拨弹电机
     uint32_t ShooterFeedbackTick[3];
+    volatile bool PowerBoardFeedbackReceived;
+    volatile uint32_t PowerBoardFeedbackTick;
+    volatile uint32_t PowerBoardFeedbackCount;
     RC_ctrl_t *RC_Ptr;
 
     void Init(void);
@@ -121,6 +120,7 @@ public:
     bool GimbalFeedbackReady(void) const;
     bool FrictionFeedbackReady(void) const;
     bool TriggerFeedbackReady(void) const;
+    bool PowerBoardFeedbackReady(void) const;
 };
 
 extern Message_Ctrl Message;

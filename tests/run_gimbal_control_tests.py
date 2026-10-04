@@ -60,6 +60,9 @@ struct motor_measure_t { uint16_t ecd; int16_t speed_rpm; };
 struct HostDM {
     DM_Motor_measure_t data = {};
     float sent = 0;
+    bool enable_succeeds = true;
+    bool clear_pending = false;
+    unsigned clear_count = 0, enable_count = 0, ordered_enable_count = 0;
     const DM_Motor_measure_t *Get_DM_Motor_Measure_Pointer() { return &data; }
 };
 struct HostDJI {
@@ -70,7 +73,13 @@ struct HostDJI {
 struct HostCAN {
     HostDM GimbalLargeYaw, GimbalPitch;
     HostDJI GimbalSmallYaw, Fric, Trigger;
-    void DM_Motor_Enable(HostDM *m) { m->data.state=1; }
+    void DM_Motor_clear_error(HostDM *m) { ++m->clear_count; m->clear_pending=true; }
+    void DM_Motor_Enable(HostDM *m) {
+        ++m->enable_count;
+        if(m->clear_pending) ++m->ordered_enable_count;
+        m->clear_pending=false;
+        if(m->enable_succeeds) m->data.state=1;
+    }
     void DM_SendData(HostDM *m, float, float, float, float, float t) { m->sent=t; }
     void SendData(HostDJI *m, int16_t a, int16_t b=0) { m->sent[0]=a; m->sent[1]=b; }
 };
@@ -145,6 +154,8 @@ int main(int argc,char **argv) {
     CAN_Cmd.GimbalLargeYaw.data.POS.fdata=GIMBAL_LARGE_YAW_ZERO_RAD;
     Message.GimbalGyro.Pitch_angle=10;
     Gimbal.Init(); Cycle();
+    CHECK(CAN_Cmd.GimbalLargeYaw.ordered_enable_count==1);
+    CHECK(CAN_Cmd.GimbalPitch.ordered_enable_count==1);
     CHECK(Near(Gimbal.LargeYaw.position_pid.max_out,DM_4310_V_MAX));
     CHECK(Gimbal.Mode==GIMBAL_REMOTE_CONTROL);
     CHECK(Near(Gimbal.LargeYaw.position_pid.Kp,GIMBAL_LARGE_YAW_POSITION_KP));
@@ -285,6 +296,61 @@ int main(int argc,char **argv) {
     Chassis.KeyboardNoForce=false;
     host_rc.mouse.press_l=0; Cycle();
     CHECK(Gimbal.Mode==GIMBAL_REMOTE_CONTROL && !Gimbal.Flags.Fric_Flag);
+    // Lost enable state: retry clear-error then enable at a bounded rate.
+    HostDM &large=CAN_Cmd.GimbalLargeYaw;
+    HostDM &pitch=CAN_Cmd.GimbalPitch;
+    large.data.state=0; pitch.data.state=0;
+    large.enable_succeeds=false; pitch.enable_succeeds=false;
+    const unsigned large_before=large.enable_count, pitch_before=pitch.enable_count;
+    Cycle();
+    CHECK(large.enable_count==large_before+1 && pitch.enable_count==pitch_before+1);
+    CHECK(large.sent==0 && pitch.sent==0);
+    for(unsigned i=1;i<GIMBAL_DM_ENABLE_RETRY_MS;++i) Cycle();
+    CHECK(large.enable_count==large_before+1 && pitch.enable_count==pitch_before+1);
+    Cycle();
+    CHECK(large.enable_count==large_before+2 && pitch.enable_count==pitch_before+2);
+    large.enable_succeeds=true; pitch.enable_succeeds=true;
+    for(unsigned i=0;i<GIMBAL_DM_ENABLE_RETRY_MS;++i) Cycle();
+    CHECK(large.data.state==1 && pitch.data.state==1);
+    CHECK(large.enable_count==large.ordered_enable_count);
+    CHECK(pitch.enable_count==pitch.ordered_enable_count);
+
+    // Re-enable while Pitch is above its range: hold its current angle, then
+    // accept only inward commands and never pull it back outward as it moves.
+    host_rc.rc.s[0]=2; host_rc.rc.s[1]=2; host_rc.rc.ch[1]=0;
+    Message.GimbalGyro.Pitch_angle=-40.0f; Cycle();
+    host_rc.rc.s[0]=3; Cycle();
+    CHECK(Near(Gimbal.Pitch.angle_set,40.0f));
+    host_rc.rc.ch[1]=660; Cycle();
+    CHECK(Near(Gimbal.Pitch.angle_set,40.0f));
+    host_rc.rc.ch[1]=-660; Cycle();
+    CHECK(Near(Gimbal.Pitch.angle_set,40.0f-660.0f*GIMBAL_PITCH_RC_SENSITIVITY));
+    host_rc.rc.ch[1]=0;
+    Message.GimbalGyro.Pitch_angle=-39.8f; Cycle();
+    CHECK(Near(Gimbal.Pitch.angle_set,39.8f));
+
+    // The same one-way behavior applies below the lower stop.
+    host_rc.rc.s[0]=2; Message.GimbalGyro.Pitch_angle=30.0f; Cycle();
+    host_rc.rc.s[0]=3; Cycle();
+    CHECK(Near(Gimbal.Pitch.angle_set,-30.0f));
+    host_rc.rc.ch[1]=-660; Cycle();
+    CHECK(Near(Gimbal.Pitch.angle_set,-30.0f));
+    host_rc.rc.ch[1]=660; Cycle();
+    CHECK(Near(Gimbal.Pitch.angle_set,-30.0f+660.0f*GIMBAL_PITCH_RC_SENSITIVITY));
+    host_rc.rc.ch[1]=0;
+    Message.GimbalGyro.Pitch_angle=29.8f; Cycle();
+    CHECK(Near(Gimbal.Pitch.angle_set,-29.8f));
+
+    // Once inside the range, the normal target limits still apply.
+    host_rc.rc.s[0]=2; Message.GimbalGyro.Pitch_angle=-29.99f; Cycle();
+    host_rc.rc.s[0]=3; Cycle();
+    host_rc.rc.ch[1]=660; Cycle();
+    CHECK(Near(Gimbal.Pitch.angle_set,GIMBAL_PITCH_MAX_ANGLE));
+    host_rc.rc.s[0]=2; host_rc.rc.ch[1]=0;
+    Message.GimbalGyro.Pitch_angle=19.99f; Cycle();
+    host_rc.rc.s[0]=3; Cycle();
+    host_rc.rc.ch[1]=-660; Cycle();
+    CHECK(Near(Gimbal.Pitch.angle_set,GIMBAL_PITCH_MIN_ANGLE));
     if(replay) CHECK(fclose(replay)==0);
     printf("Normal gimbal: %u checks passed; %u control cycles.\n",checks,cycles);
 }

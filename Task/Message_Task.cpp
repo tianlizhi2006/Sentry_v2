@@ -1,7 +1,6 @@
 #include "Message_Task.h"
 #include "tasks.h"
 #include "protocol_crc.h"
-#include <math.h>
 
 Message_Ctrl Message;
 
@@ -214,14 +213,16 @@ void Message_Ctrl::CAN1_Process(CanRxMsg *Rx_Message)
 
     switch (rx_data.StdId.u32)
     {
-    case CAN_CAP_GET_ID:
-        SuperCapR.situation = rx_data.Data[0];
-        SuperCapR.mode = rx_data.Data[1];
-        SuperCapR.power = (float)(uint16_t)(rx_data.Data[2] | (rx_data.Data[3] << 8)) * 0.1f;
-        SuperCapR.power_all = (float)(uint16_t)(rx_data.Data[4] | (rx_data.Data[5] << 8)) * 0.1f;
-        SuperCapR.energy = (uint8_t)sqrtf(rx_data.Data[6] * 8.0f);
-        SuperCapR.power_limit = rx_data.Data[7];
-        SuperCapR.Motor_Messagr_dt = DWT_GetDeltaT(&SuperCapR.Motor_Message_count);
+    case CAN_POWER_BOARD_GET_ID:
+        PowerBoardR.situation = rx_data.Data[0];
+        PowerBoardR.mode = rx_data.Data[1];
+        PowerBoardR.power = (float)(uint16_t)(rx_data.Data[2] | (rx_data.Data[3] << 8)) * 0.1f;
+        PowerBoardR.power_out = (float)(uint16_t)(rx_data.Data[4] | (rx_data.Data[5] << 8)) * 0.1f;
+        PowerBoardR.power_limit = rx_data.Data[7];
+        PowerBoardR.feedback_dt = DWT_GetDeltaT(&PowerBoardR.feedback_dwt_count);
+        PowerBoardFeedbackTick = xTaskGetTickCount();
+        ++PowerBoardFeedbackCount;
+        PowerBoardFeedbackReceived = true;
         break;
     case CAN_DJI_Motor6_ID:
         MA_get_motor_measure(CAN_Cmd.GimbalSmallYaw.GetData(1), rx_data.Data);
@@ -383,4 +384,10 @@ bool Message_Ctrl::TriggerFeedbackReady(void) const
         return false;
     }
     return true;
+}
+
+bool Message_Ctrl::PowerBoardFeedbackReady(void) const
+{
+    return PowerBoardFeedbackReceived
+        && (xTaskGetTickCount() - PowerBoardFeedbackTick) <= pdMS_TO_TICKS(CHASSIS_POWER_BOARD_TIMEOUT_MS);
 }

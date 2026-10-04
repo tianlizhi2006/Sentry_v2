@@ -158,8 +158,14 @@
 #define TRIGGER_SPEED_PID_BAND_I              3000.0f
 
 
-// 裁判系统拆除后的固定底盘功率上限
-#define CHASSIS_POWER_LIMIT_W 120.0f
+// 功率板回报与 VOFA 观察参数。
+#define CHASSIS_POWER_BOARD_TIMEOUT_MS 100U
+#define CHASSIS_POWER_VOFA_PERIOD_MS    20U
+
+// Fixed remote-control speed mapping, independent of the power model.
+#define CHASSIS_RC_MAX_VX_MPS           1.61f
+#define CHASSIS_RC_MAX_VY_MPS           1.29f
+#define CHASSIS_LITTLE_TOP_MAX_WZ_RADPS 6.0f
 
 // 遥控器死区
 #define CHASSIS_RC_DEADLINE 3
