@@ -41,13 +41,7 @@
 
 ## 验证
 
-使用 Keil 的 `MDK-ARM/HAL_Robot.uvprojx` 构建固件。主机回归测试：
-
-```text
-python tests/run_gimbal_control_tests.py
-```
-
-云台测试编译实际控制和 PID 源码，检查遥控、限幅、反馈失联及发射联锁。功率板通信需在实机上验证。
+使用 Keil 的 `MDK-ARM/HAL_Robot.uvprojx` 构建固件。云台动作、限位和功率板通信需在实机上验证。
 
 ### 功率板首次通信检查
 
