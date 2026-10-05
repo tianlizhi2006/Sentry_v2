@@ -91,21 +91,21 @@
 #define GIMBAL_LARGE_YAW_POSITION_MAX_OUT   30.0f // rad/s，保持当前实际生效的上限
 #define GIMBAL_LARGE_YAW_POSITION_MAX_IOUT  0.0f
 #define GIMBAL_LARGE_YAW_POSITION_BAND_I    0.0f
-#define GIMBAL_LARGE_YAW_SPEED_KP           0.9f  // 大 Yaw 速度环增益
+#define GIMBAL_LARGE_YAW_SPEED_KP           1.1f  // 大 Yaw 速度环增益
 #define GIMBAL_LARGE_YAW_SPEED_KI           0.0f // 每 1 ms 周期累加，PID 内部不乘 dt
-#define GIMBAL_LARGE_YAW_SPEED_KD           0.05f
+#define GIMBAL_LARGE_YAW_SPEED_KD           0.03f
 #define GIMBAL_LARGE_YAW_SPEED_MAX_OUT      5.0f
 #define GIMBAL_LARGE_YAW_SPEED_MAX_IOUT     0.4f    // Nm，积分输出限幅
 #define GIMBAL_LARGE_YAW_SPEED_BAND_I       1.0f    // rad/s，误差绝对值小于此值才累加
 
 // 小 Yaw：角度环/速度环主参数。
-#define GIMBAL_SMALL_YAW_POSITION_KP        1.9f
+#define GIMBAL_SMALL_YAW_POSITION_KP        2.0f
 #define GIMBAL_SMALL_YAW_POSITION_KI        0.0f
 #define GIMBAL_SMALL_YAW_POSITION_KD        0.0f
 #define GIMBAL_SMALL_YAW_POSITION_MAX_OUT   30.0f
 #define GIMBAL_SMALL_YAW_POSITION_MAX_IOUT  0.0f
 #define GIMBAL_SMALL_YAW_POSITION_BAND_I    0.0f
-#define GIMBAL_SMALL_YAW_SPEED_KP           270.0f
+#define GIMBAL_SMALL_YAW_SPEED_KP           400.0f
 #define GIMBAL_SMALL_YAW_SPEED_KI           0.0f
 #define GIMBAL_SMALL_YAW_SPEED_KD           0.0f
 #define GIMBAL_SMALL_YAW_SPEED_MAX_OUT      MAX_MOTOR_6020_CAN_CURRENT
@@ -127,7 +127,7 @@
 #define GIMBAL_PITCH_SPEED_BAND_I           0.0f
 
 // 发射机构，摩擦轮使用 CAN3 的 ID1/ID2，拨弹电机使用 CAN3 的 ID5。
-#define FRIC_SPEED_SET_RPM                   3200.0f
+#define FRIC_SPEED_SET_RPM                   6000.0f
 #define FRIC_READY_TOLERANCE_RPM             300.0f
 #define FRIC_READY_STABLE_TIME_MS             100u
 
@@ -149,7 +149,7 @@
 #define TRIGGER_REDUCTION_RATIO                36.0f
 //转一圈的发弹数
 #define TRIGGER_ONCE_SHOOT_NUM                  8.0f
-#define TRIGGER_SHOOT_FREQUENCY                 6.0f
+#define TRIGGER_SHOOT_FREQUENCY                 10.0f
 #define TRIGGER_SPEED_PID_KP                    10.0f
 #define TRIGGER_SPEED_PID_KI                     0.5f
 #define TRIGGER_SPEED_PID_KD                     0.0f
