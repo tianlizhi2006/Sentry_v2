@@ -220,9 +220,7 @@ void Message_Ctrl::CAN1_Process(CanRxMsg *Rx_Message)
         PowerBoardR.power_out = (float)(uint16_t)(rx_data.Data[4] | (rx_data.Data[5] << 8)) * 0.1f;
         PowerBoardR.power_limit = rx_data.Data[7];
         PowerBoardR.feedback_dt = DWT_GetDeltaT(&PowerBoardR.feedback_dwt_count);
-        PowerBoardFeedbackTick = xTaskGetTickCount();
         ++PowerBoardFeedbackCount;
-        PowerBoardFeedbackReceived = true;
         break;
     case CAN_DJI_Motor6_ID:
         MA_get_motor_measure(CAN_Cmd.GimbalSmallYaw.GetData(1), rx_data.Data);
@@ -384,10 +382,4 @@ bool Message_Ctrl::TriggerFeedbackReady(void) const
         return false;
     }
     return true;
-}
-
-bool Message_Ctrl::PowerBoardFeedbackReady(void) const
-{
-    return PowerBoardFeedbackReceived
-        && (xTaskGetTickCount() - PowerBoardFeedbackTick) <= pdMS_TO_TICKS(CHASSIS_POWER_BOARD_TIMEOUT_MS);
 }

@@ -110,10 +110,10 @@ float PID_T::Forwardfeed(PID_t *pid)
 /*******************************************************Wang Hongxi************************************************************************/
 
 /**
- * @brief          PID初始化   PID initialize
- * @param[in]      PID结构体   PID structure
+ * @brief          初始化 PID 参数和运行状态
+ * @param[in]      PID 结构体指针
  * @param[in]      略
- * @retval         返回空      null
+ * @retval         无返回值
  */
 void PID_T::Init(
     PID_t *pid,
@@ -144,8 +144,7 @@ void PID_T::Init(
     pid->Kd = Kd;
     pid->ITerm = 0;
 
-    // 变速积分参数
-    // coefficient of changing integration rate
+    // 变速积分的 A、B 系数。
     pid->CoefA = A;
     pid->CoefB = B;
 
@@ -153,13 +152,11 @@ void PID_T::Init(
 
     pid->Derivative_LPF_RC = derivative_lpf_rc;
 
-    // 最小二乘提取信号微分初始化
-    // differential signal is distilled by OLS
+    // 设置最小二乘法提取微分时使用的样本阶数。
     pid->OLS_Order = ols_order;
     // OLS_Init(&pid->OLS, ols_order);
 
-    // DWT定时器计数变量清零
-    // reset DWT Timer count counter
+    // 清零 DWT 计时基准。
     pid->DWT_CNT = 0;
 
     // 设置PID优化环节
@@ -280,9 +277,8 @@ static void f_Changing_Integration_Rate(PID_t *pid)
     else if (pid->Err * pid->Iout > 0)
     {
         // 积分呈累积趋势
-        // Integral still increasing
         if (fabs(pid->Err) <= pid->CoefB)
-            return; // Full integral
+            return; // 误差足够小时保持当前积分增量。
         if (fabs(pid->Err) <= (pid->CoefA + pid->CoefB))
             pid->ITerm *= 0.1f;
         else
@@ -300,7 +296,6 @@ static void f_Integral_Limit(PID_t *pid)
         if (pid->Err * pid->Iout > 0)
         {
             // 积分呈累积趋势
-            // Integral still increasing
             pid->ITerm = 0;
         }
     }
@@ -361,16 +356,16 @@ static void f_Proportion_Limit(PID_t *pid)
     }
 }
 
-// PID ERRORHandle Function
+// 检查 PID 输出异常。
 static void f_PID_ErrorHandle(PID_t *pid)
 {
-    /*Motor Blocked Handle*/
+    /* 电机堵转判断。 */
     if (pid->Output < pid->MaxOut * 0.001f || fabs(pid->Ref) < 0.0001f)
         return;
 
     if ((fabs(pid->Ref - pid->Measure) / fabs(pid->Ref)) > 0.95f)
     {
-        // Motor blocked counting
+        // 速度偏差持续过大时累计堵转次数。
         pid->ERRORHandler.ERRORCount++;
     }
     else
@@ -380,7 +375,7 @@ static void f_PID_ErrorHandle(PID_t *pid)
 
     if (pid->ERRORHandler.ERRORCount > 500)
     {
-        // Motor blocked over 1000times
+        // 堵转计数超过 500 次后标记故障。
         pid->ERRORHandler.ERRORType = Motor_Blocked;
     }
 }

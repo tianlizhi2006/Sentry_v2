@@ -144,36 +144,29 @@ void Serial_Ctrl::Handle(Serialctrl *SerialCtrl, Serial_Data_t *Serial, bool mod
         if (mode == 1)
         {
             bool Memory;
-            /* Current memory buffer used is Memory 0 */
-            // disable DMA
-            // 失效DMA
+            // 暂停接收 DMA，读取本次接收长度并切换双缓冲区。
             __HAL_DMA_DISABLE(SerialCtrl->hdma_usart_rx);
 
-            // get receive data length, length = set_data_length - remain_length
-            // 获取接收数据长度,长度 = 设定长度 - 剩余长度
+            // 已接收字节数 = 缓冲区长度 - DMA 剩余字节数。
             Serial->Len = Serial->buffer_size - ((DMA_Stream_TypeDef *)SerialCtrl->hdma_usart_rx->Instance)->NDTR;
 
-            // reset set_data_lenght
-            // 重新设定数据长度
+            // 为下一次接收重设 DMA 传输长度。
             ((DMA_Stream_TypeDef *)SerialCtrl->hdma_usart_rx->Instance)->NDTR = Serial->buffer_size;
 
             if ((((DMA_Stream_TypeDef *)SerialCtrl->hdma_usart_rx->Instance)->CR & DMA_SxCR_CT) == RESET)
             {
-                // set memory buffer 1
-                // 设定缓冲区1
+                // 下次写入缓冲区 1；刚完成的是缓冲区 0。
                 ((DMA_Stream_TypeDef *)SerialCtrl->hdma_usart_rx->Instance)->CR |= DMA_SxCR_CT;
                 Memory = 0;
             }
             else
             {
-                // set memory buffer 0
-                // 设定缓冲区0
+                // 下次写入缓冲区 0；刚完成的是缓冲区 1。
                 ((DMA_Stream_TypeDef *)SerialCtrl->hdma_usart_rx->Instance)->CR &= ~(DMA_SxCR_CT);
                 Memory = 1;
             }
 
-            // enable DMA
-            // 使能DMA
+            // 恢复接收 DMA。
             __HAL_DMA_ENABLE(SerialCtrl->hdma_usart_rx);
 
 

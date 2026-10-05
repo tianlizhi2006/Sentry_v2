@@ -59,16 +59,10 @@ void RC_mark_frame_received(void)
     rc_frame_received = true;
 }
 /**
-  * @brief          remote control protocol resolution
-  * @param[in]      sbus_buf: raw data point
-  * @param[out]     rc_ctrl: remote control data struct point
-  * @retval         none
-  */
-/**
   * @brief          遥控器协议解析
-  * @param[in]      sbus_buf: 原生数据指针
-  * @param[out]     rc_ctrl: 遥控器数据指
-  * @retval         none
+  * @param[in]      sbus_buf: 原始帧数据指针
+  * @param[out]     rc_ctrl: 解析后的遥控数据指针
+  * @retval         无返回值
   */
 	
 /* CRC16 初始值 */

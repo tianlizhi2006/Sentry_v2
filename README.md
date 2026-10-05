@@ -11,12 +11,12 @@
 - 小 Yaw 相对偏角超过 1000 ECD（约 44°）时，将朝向目标冻结在当时的 IMU 角度，并暂停遥控目标累加。偏角回到 500 ECD（约 22°）以内后，从冻结目标继续接收遥控增量。
 - 遥控异常、右拨杆下挡或云台必要反馈超时会停止输出；模式切换时重置目标和 PID 历史量。
 
-已移除独立位置/速度调参模式、试验力矩前馈及临时限幅开关。UART10 RX 保留键鼠接收，TX 用于 VOFA 功率曲线。
+已移除独立位置/速度调参模式、试验力矩前馈及临时限幅开关。UART10 RX 保留键鼠接收。
 
 ## 已完成功能
 
 - 四全向轮底盘：四个 3508 电机，CAN2，支持普通模式和小陀螺模式。
-- CAN1 只接收功率板的 `0x301` 回报，用于通信排查和 VOFA 观察。主控不发送 `0x311`，四轮电流不经过功率预测、功率反馈外环或功率缩放。
+- CAN1 只接收功率板的 `0x301` 回报。主控不发送 `0x311`，四轮电流不经过功率预测、功率反馈外环或功率缩放。
 - 四轮速度 PID 输出仍受 `CHASSIS_3508_SPEED_PID_MAX_OUT` 限制，遥控速度目标仍受 `MAX_WHEEL_SPEED` 限制；两者是原有电机与速度上限。
 - 以云台朝向作为底盘前方，左摇杆控制前后、左右平移。
 - 双 Yaw 云台：大 Yaw 为 DM4310，小 Yaw 为 GM6020，Pitch 为 DM4310。
@@ -46,27 +46,14 @@
 ### 功率板首次通信检查
 
 1. 架空底盘，保持右拨杆在无力挡，给主控和功率板上电。功率板接 CAN1：PD0 为 RX、PD1 为 TX；工程使用标准帧、经典 CAN、1 Mbps。检查 CAN_H/CAN_L、共地和总线终端电阻。
-2. Keil 连接调试器并运行程序。在 Watch 窗口观察 `Message.PowerBoardFeedbackCount`：持续增长表示主控持续解析到板端 `0x301`；同时看 `Message.PowerBoardFeedbackReceived`、`Message.PowerBoardR.situation`、`Message.PowerBoardR.power` 和 `Message.PowerBoardR.power_limit`。接收时间 `Message.PowerBoardFeedbackTick` 应持续更新。反馈有效只按最近 100 ms 是否收到帧判断，不依赖电容状态字节。
+2. Keil 连接调试器并运行程序。在 Watch 窗口观察 `Message.PowerBoardFeedbackCount`：持续增长表示主控持续解析到板端 `0x301`；同时可查看 `Message.PowerBoardR.situation`、`Message.PowerBoardR.power` 和 `Message.PowerBoardR.power_limit`。
 3. 用 CAN 分析仪确认板端 `0x301` 的实际发送间隔；当前主控不发送 `0x311`。若板端固件需要 `0x311` 才允许供电或周期回报，应按板端协议重新接入控制命令。
 4. 轻推遥控并观察 `Chassis.Motor[0..3].give_current`。功率板反馈不会改变四轮电流指令；实测值只用于观察。
-
-### VOFA+ 底盘功率曲线
-
-UART10 的 TX 是 PE3，使用 921600、8N1；UART10 RX（PE2）继续接收原有键鼠数据。将 PE3 接 USB 转串口模块的 RX，并连接共地。在 VOFA+ 中选择对应串口、921600 波特率和 JustFloat 协议。底盘任务每 20 ms 发送一次，曲线顺序为：
-
-| 通道 | 内容 |
-|---|---|
-| 0 | 功率板 `PowerBoardR.power_out`（Pout）实测值，单位 W |
-| 1 | 功率板 `PowerBoardR.power` 回报值，单位 W |
-| 2 | 功率板回报的 `power_limit` 字节值，仅作诊断显示 |
-| 3 | 功率板反馈有效标志：1 为最近 100 ms 收到反馈，0 为超时或尚未收到 |
-
-通道 3 为 0 时，其他通道发送 0，避免旧反馈显示成实时功率。当前没有主控设定的功率限制曲线。
 
 ## 后续维护
 
 - 更换电机、机械结构或负载后，重新核对零点、方向、控制参数和输出限幅。
-- 当前摩擦轮目标转速为 3200 RPM，拨弹设置约 6 发/秒；参数以配置文件为准。
+- 当前摩擦轮目标转速为 6000 RPM，拨弹设置约 10 发/秒；参数以配置文件为准。
 - 拨弹盘堵转检测、停机和自动退弹逻辑尚未完成。
 - 裁判系统尚未接入；`Heat_Allow_Flag` 当前固定允许，接口已保留。
 - 视觉自瞄尚未接入。

@@ -220,15 +220,14 @@ void Gimbal_Ctrl::Control(void)
     const float requested_pitch = Pitch.angle_set - pitch_delta;
     if (Pitch.angle > GIMBAL_PITCH_MAX_ANGLE)
     {
-        // Above the upper stop, accept only inward (decreasing) commands.
-        // Follow any inward motion so the target cannot pull the axis back out.
+        // 高于上限时只接收减小角度的指令；轴向内移动后同步收回目标，避免反向拉回越界位置。
         Pitch.angle_set = requested_pitch < Pitch.angle_set ? requested_pitch : Pitch.angle_set;
         if (Pitch.angle_set > Pitch.angle) Pitch.angle_set = Pitch.angle;
         if (Pitch.angle_set < GIMBAL_PITCH_MIN_ANGLE) Pitch.angle_set = GIMBAL_PITCH_MIN_ANGLE;
     }
     else if (Pitch.angle < GIMBAL_PITCH_MIN_ANGLE)
     {
-        // Below the lower stop, accept only inward (increasing) commands.
+        // 低于下限时只接收增大角度的指令，并随轴向内移动同步更新目标。
         Pitch.angle_set = requested_pitch > Pitch.angle_set ? requested_pitch : Pitch.angle_set;
         if (Pitch.angle_set < Pitch.angle) Pitch.angle_set = Pitch.angle;
         if (Pitch.angle_set > GIMBAL_PITCH_MAX_ANGLE) Pitch.angle_set = GIMBAL_PITCH_MAX_ANGLE;

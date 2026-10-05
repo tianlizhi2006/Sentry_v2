@@ -44,41 +44,12 @@
 
 Chassis_Ctrl Chassis;
 
-// VOFA+ JustFloat: four little-endian float32 values followed by 00 00 80 7F.
-// Keep the buffer alive until the UART10 transmit interrupt completes.
-static void Send_Chassis_Power_VOFA(void)
-{
-	static uint8_t frame[4U * 4U + 4U];
-	static uint32_t last_tick = 0U;
-	const uint32_t now = xTaskGetTickCount();
-	if ((now - last_tick) < pdMS_TO_TICKS(CHASSIS_POWER_VOFA_PERIOD_MS)
-		|| huart10.gState != HAL_UART_STATE_READY)
-	{
-		return;
-	}
-	last_tick = now;
-
-	const bool feedback_ready = Message.PowerBoardFeedbackReady();
-	const float channels[4] = {
-		feedback_ready ? Message.PowerBoardR.power_out : 0.0f,
-		feedback_ready ? Message.PowerBoardR.power : 0.0f,
-		feedback_ready ? (float)Message.PowerBoardR.power_limit : 0.0f,
-		feedback_ready ? 1.0f : 0.0f
-	};
-	memcpy(frame, channels, sizeof(channels));
-	frame[16] = 0x00;
-	frame[17] = 0x00;
-	frame[18] = 0x80;
-	frame[19] = 0x7f;
-	(void)HAL_UART_Transmit_IT(&huart10, frame, sizeof(frame));
-}
-
 void Chassis_Task(void *argument)
 {
 	/* USER CODE BEGIN StartDefaultTask */
 	Chassis.Chassis_Init();
 
-	/* Infinite loop */
+	/* 底盘控制循环。 */
 	for (;;)
 	{
 		//状态机切换
@@ -104,7 +75,6 @@ void Chassis_Task(void *argument)
 				Chassis.Motor[2].give_current,
 				Chassis.Motor[3].give_current);
 		}
-		Send_Chassis_Power_VOFA();
 
 		
 		

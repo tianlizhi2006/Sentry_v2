@@ -106,8 +106,6 @@ public:
     uint32_t GimbalFeedbackTick[4];
     bool ShooterFeedbackReceived[3]; // 摩擦轮1、摩擦轮2、拨弹电机
     uint32_t ShooterFeedbackTick[3];
-    volatile bool PowerBoardFeedbackReceived;
-    volatile uint32_t PowerBoardFeedbackTick;
     volatile uint32_t PowerBoardFeedbackCount;
     RC_ctrl_t *RC_Ptr;
 
@@ -120,7 +118,6 @@ public:
     bool GimbalFeedbackReady(void) const;
     bool FrictionFeedbackReady(void) const;
     bool TriggerFeedbackReady(void) const;
-    bool PowerBoardFeedbackReady(void) const;
 };
 
 extern Message_Ctrl Message;

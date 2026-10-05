@@ -2,7 +2,7 @@
 
 
 /***********************************    ↓    DJI提供的CRC校检函数   ↓  ***********************************/
-//crc8 generator polynomial:G(x)=x8+x5+x4+1
+// CRC8 生成多项式：G(x) = x^8 + x^5 + x^4 + 1。
 const unsigned char CRC8_INIT = 0xff;
 const unsigned char CRC8_TAB[256] =
 {
@@ -37,11 +37,7 @@ unsigned char Get_CRC8_Check_Sum(unsigned char *pchMessage, unsigned int dwLengt
 }
 
 
-/*
-** Descriptions: CRC8 Verify function
-** Input: Data to Verify,Stream length = Data + checksum
-** Output: True or False (CRC Verify Result)
-*/
+/* 校验数据末尾的 CRC8；dwLength 包含该校验字节，返回 1 表示通过。 */
 unsigned int Verify_CRC8_Check_Sum(unsigned char *pchMessage, unsigned int dwLength)
 {
     unsigned char ucExpected = 0;
@@ -52,11 +48,7 @@ unsigned int Verify_CRC8_Check_Sum(unsigned char *pchMessage, unsigned int dwLen
 }
 
 
-/*
-** Descriptions: append CRC8 to the end of data
-** Input: Data to CRC and append,Stream length = Data + checksum
-** Output: True or False (CRC Verify Result)
-*/
+/* 将 CRC8 校验字节写入数据末尾；dwLength 包含校验字节本身。 */
 void Append_CRC8_Check_Sum(unsigned char *pchMessage, unsigned int dwLength)
 {
     unsigned char ucCRC = 0;
@@ -105,11 +97,7 @@ const uint16_t wCRC_Table[256] =
 };
 
 
-/*
-** Descriptions: CRC16 checksum function
-** Input: Data to check,Stream length, initialized checksum
-** Output: CRC checksum
-*/
+/* 按给定初始值 wCRC 计算 dwLength 字节数据的 CRC16。 */
 uint16_t Get_CRC16_Check_Sum(uint8_t *pchMessage, uint32_t dwLength, uint16_t wCRC)
 {
     uint8_t chData;
@@ -127,11 +115,7 @@ uint16_t Get_CRC16_Check_Sum(uint8_t *pchMessage, uint32_t dwLength, uint16_t wC
 }
 
 
-/*
-** Descriptions: CRC16 Verify function
-** Input: Data to Verify,Stream length = Data + checksum
-** Output: True or False (CRC Verify Result)
-*/
+/* 校验数据末尾的 CRC16；dwLength 包含两个校验字节，返回 1 表示通过。 */
 uint32_t Verify_CRC16_Check_Sum(uint8_t *pchMessage, uint32_t dwLength)
 {
     uint16_t wExpected = 0;
@@ -142,11 +126,7 @@ uint32_t Verify_CRC16_Check_Sum(uint8_t *pchMessage, uint32_t dwLength)
     wExpected = Get_CRC16_Check_Sum(pchMessage, dwLength - 2, CRC_INIT);
     return ((wExpected & 0xff) == pchMessage[dwLength - 2] && ((wExpected >> 8) & 0xff) == pchMessage[dwLength - 1]);
 }
-/*
-** Descriptions: append CRC16 to the end of data
-** Input: Data to CRC and append,Stream length = Data + checksum
-** Output: True or False (CRC Verify Result)
-*/
+/* 将 CRC16 校验值写入数据末尾两个字节；dwLength 包含校验值本身。 */
 void Append_CRC16_Check_Sum(uint8_t *pchMessage, uint32_t dwLength)
 {
     uint16_t wCRC = 0;
@@ -159,5 +139,3 @@ void Append_CRC16_Check_Sum(uint8_t *pchMessage, uint32_t dwLength)
     pchMessage[dwLength - 1] = (uint8_t)((wCRC >> 8) & 0x00ff);
 }
 /***********************************    ↑    DJI提供的CRC校检函数   ↑  ***********************************/
-
-

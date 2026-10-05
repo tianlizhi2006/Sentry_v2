@@ -2,16 +2,13 @@
 
 void MA_UART_Receive_DMA_Init(UART_HandleTypeDef *_huartx, DMA_HandleTypeDef * hdma_usart_rx ,uint8_t *rx1_buf, uint8_t *rx2_buf, uint16_t dma_buf_num)
 {
-    //enable the DMA transfer for the receiver request
-    //使能DMA串口接收
+    // 允许 UART 接收事件触发 DMA 请求。
     SET_BIT(_huartx->Instance->CR3, USART_CR3_DMAR);
 
-    //enalbe idle interrupt
-    //使能空闲中断
+    // 用串口空闲中断判断一帧接收结束。
     __HAL_UART_ENABLE_IT(_huartx, UART_IT_IDLE);
 
-    //disable DMA
-    //失效DMA
+    // 停止 DMA 后再配置地址和传输长度。
     __HAL_DMA_DISABLE(hdma_usart_rx);
     while(((DMA_Stream_TypeDef*) hdma_usart_rx->Instance)->CR & DMA_SxCR_EN)
     {
@@ -19,21 +16,16 @@ void MA_UART_Receive_DMA_Init(UART_HandleTypeDef *_huartx, DMA_HandleTypeDef * h
     }
 
     ((DMA_Stream_TypeDef*) hdma_usart_rx->Instance)->PAR = (uint32_t) & (_huartx->Instance->RDR);
-    //memory buffer 1
-    //内存缓冲区1
+    // 双缓冲区的第一个接收地址。
     ((DMA_Stream_TypeDef*) hdma_usart_rx->Instance)->M0AR = (uint32_t)(rx1_buf);
-		//memory buffer 2
-    //内存缓冲区2
+	// 双缓冲区的第二个接收地址。
     ((DMA_Stream_TypeDef*) hdma_usart_rx->Instance)->M1AR = (uint32_t)(rx2_buf);
-    //data length
-    //数据长度
+    // 每个缓冲区可接收的字节数。
     ((DMA_Stream_TypeDef*) hdma_usart_rx->Instance)->NDTR = dma_buf_num;
-    //enable double memory buffer
-    //使能双缓冲区
+    // 启用 DMA 双缓冲模式。
     SET_BIT(((DMA_Stream_TypeDef*) hdma_usart_rx->Instance)->CR, DMA_SxCR_DBM);
 
-    //enable DMA
-    //使能DMA
+    // 启动 DMA 接收。
     __HAL_DMA_ENABLE(hdma_usart_rx);
 
 }

@@ -30,7 +30,7 @@ static osMutexId_t Get_CAN_Tx_Mutex(CANctrl *CANx_Ctrl)
 }
 
 int float_to_uint(float x, float x_min, float x_max, int bits){
-    /// Converts a float to an unsigned int, given range and number of bits ///
+    // 将指定范围内的浮点值映射到 bits 位无符号整数。
     float span = x_max - x_min;
     float offset = x_min;
     return (int) ((x-offset)*((float)((1<<bits)-1))/span);
@@ -38,7 +38,7 @@ int float_to_uint(float x, float x_min, float x_max, int bits){
     
     
 float uint_to_float(int x_int, float x_min, float x_max, int bits){
-    /// converts unsigned int to float, given range and number of bits ///
+    // 将 bits 位无符号整数还原为指定范围内的浮点值。
     float span = x_max - x_min;
     float offset = x_min;
     return ((float)x_int)*span/((float)((1<<bits)-1)) + offset;

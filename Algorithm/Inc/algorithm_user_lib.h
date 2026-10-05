@@ -22,22 +22,21 @@ extern"C"{
 #endif
 #endif
 
-/* boolean type definitions */
+/* 布尔常量的兼容定义。 */
 #ifndef TRUE
-#define TRUE 1 /**< boolean true  */
+#define TRUE 1 /**< 真 */
 #endif
 
 #ifndef FALSE
-#define FALSE 0 /**< boolean fails */
+#define FALSE 0 /**< 假 */
 #endif
 
-/* math relevant */
-/* radian coefficient */
+/* 弧度转角度的系数。 */
 #ifndef RADIAN_COEF
 #define RADIAN_COEF 57.295779513f
 #endif
 
-/* circumference ratio */
+/* 圆周率。 */
 #ifndef PI
 #define PI 3.14159265354f
 #endif

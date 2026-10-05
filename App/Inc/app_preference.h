@@ -1,14 +1,14 @@
 #ifndef __APP_PREFERENCE_H
 #define __APP_PREFERENCE_H
 
-// 忽略警告，摆烂
+// 保留工程原有的 Keil 编译器诊断抑制项。
 #pragma diag_suppress 177
 #pragma diag_suppress 550
 #pragma diag_suppress 3337
 // #pragma diag_suppress 1299
 
-// 发送 格式 Serialx_Ctrl （x用3，6，7，8代替），串口不能重复！
-// SerialDatax 用于判断外设是否在线
+// 各输入源使用对应的 Serialx_Ctrl 对象，不要把同一串口分配给多个接收源。
+// SerialDatax 枚举值用于标记接收数据来自哪个串口。
 #define KEYBOARD_MOUSE_CONTROL_SERIAL Serial10_Ctrl
 
 #define GYRO_SERIAL Serial3_Ctrl
@@ -24,8 +24,8 @@
 #define DR16_SERIAL_Data_Lenth 18
 #define DR16_SERIAL_BAUD 100000
 
-// 无参数则为 NULL ，会直接跳过。
-// Lenth用于检验数据长度，Buffer_size用于创建环形缓冲区和数据缓冲区，为0则中断直接发送通知给Meesge,Buffer_size应大于Lenth
+// 帧头、帧尾和候选长度设为 NULL（0）时，不检查对应条件。
+// Buffer_Size 是接收缓冲区容量，需大于允许的帧长度。
 // Serialx_ITPending 可选 USART_IT_IDLE USART_IT_RXNE USART_IT_RXNE_AND_IDLE
 
 #define Serial_NORMAL_Mode 0
@@ -158,11 +158,7 @@
 #define TRIGGER_SPEED_PID_BAND_I              3000.0f
 
 
-// 功率板回报与 VOFA 观察参数。
-#define CHASSIS_POWER_BOARD_TIMEOUT_MS 100U
-#define CHASSIS_POWER_VOFA_PERIOD_MS    20U
-
-// Fixed remote-control speed mapping, independent of the power model.
+// 遥控速度映射使用固定上限，不随功率板反馈变化。
 #define CHASSIS_RC_MAX_VX_MPS           1.61f
 #define CHASSIS_RC_MAX_VY_MPS           1.29f
 #define CHASSIS_LITTLE_TOP_MAX_WZ_RADPS 6.0f
@@ -178,10 +174,10 @@
 #define OMNI_TRANSLATION_FEEDBACK_SCALE 0.5f
 #define OMNI_ROTATION_FEEDBACK_SCALE    0.25f
 
-// 底盘任务控制间隔 1ms
+// 底盘任务控制间隔 2 ms。
 #define CHASSIS_CONTROL_TIME_MS 2
 
-// 底盘4310最大can发送电压值
+// GM6020 的 CAN 电流指令幅值上限。
 #define MAX_MOTOR_6020_CAN_CURRENT 30000.0f
 
 // 3508 转子 RPM 转轮缘线速度：2*pi*0.075/(60*19)
