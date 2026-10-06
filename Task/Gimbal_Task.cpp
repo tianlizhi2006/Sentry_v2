@@ -382,8 +382,7 @@ void Gimbal_Ctrl::Launcher_Control(void)
 {
     // CAN3 通信状态：
     // fric_feedback_ready 要求 0x201、0x202 两个摩擦轮反馈均未超过 100 ms；
-    // trigger_feedback_ready 要求拨弹电机 0x205 反馈未超过 100 ms。
-    // 这两个变量只表示收到了电机的反馈数据，不表示摩擦轮已经达到目标转速。
+    // trigger_feedback_ready 要求拨弹电机 0x205 反馈未超过 100 ms
     const bool fric_feedback_ready = Message.FrictionFeedbackReady();
     const bool trigger_feedback_ready = Message.TriggerFeedbackReady();
 
@@ -445,11 +444,11 @@ void Gimbal_Ctrl::Launcher_Control(void)
     }
 
     // 最终拨弹许可由五道条件共同决定：
-    // 1. Fric_Flag，已经打开摩擦轮；
-    // 2. Shoot_Flag，把左拨杆拨到上挡，请求发射；
-    // 3. Fric_Ready_Flag，两颗摩擦轮已经达到目标速度并连续稳定 100 ms；
-    // 4. Heat_Allow_Flag：预留的裁判系统热量许可。当前没有裁判系统，初始化后保持 true；
-    // 5. trigger_feedback_ready，拨弹盘电机在线标志位；
+    // Fric_Flag，已经打开摩擦轮；
+    // Shoot_Flag，把左拨杆拨到上挡，请求发射；
+    // Fric_Ready_Flag，两颗摩擦轮已经达到目标速度并连续稳定 100 ms；
+    // Heat_Allow_Flag：预留的裁判系统热量许可。当前没有裁判系统，初始化后保持 true；
+    // trigger_feedback_ready，拨弹盘电机在线标志位；
     if (Flags.Fric_Flag && Flags.Shoot_Flag && Flags.Fric_Ready_Flag
         && Flags.Heat_Allow_Flag && trigger_feedback_ready)
     {

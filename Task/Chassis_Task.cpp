@@ -291,8 +291,10 @@ void Chassis_Ctrl::Behaviour_Control(fp32 *vx_set, fp32 *vy_set, fp32 *angle_set
 	}
 	else if (Mode == CHASSIS_LITTLE_TOP)
 	{
+        //1980为660的三倍
+        //当遥控器平移通道值打满时，仍保留小陀螺1/3的旋转速度
 		const fp32 turn_weight = 1.0f
-			- (abs(RC_Ptr->rc.ch[CHASSIS_X_CHANNEL]) + abs(RC_Ptr->rc.ch[CHASSIS_Y_CHANNEL])) / 1320.0f;//shit_001
+			- (abs(RC_Ptr->rc.ch[CHASSIS_X_CHANNEL]) + abs(RC_Ptr->rc.ch[CHASSIS_Y_CHANNEL])) / 1980.0f;
 		RC_to_Control(vx_set, vy_set);
 		*angle_set = CHASSIS_LITTLE_TOP_MAX_WZ_RADPS * turn_weight;
 	}
