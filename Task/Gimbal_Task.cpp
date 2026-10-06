@@ -99,6 +99,13 @@ void Gimbal_Ctrl::Init(void)
     Flags.Shoot_Flag = false;
     Flags.Fric_Ready_Flag = false;
     Flags.Heat_Allow_Flag = true;
+    TriggerJamState = TRIGGER_JAM_IDLE;
+    TriggerJamStateTick = 0U;
+    TriggerLowSpeedTick = 0U;
+    TriggerLowSpeedTiming = false;
+    TriggerReverseLastEcd = 0U;
+    TriggerReverseEcdTravel = 0;
+    TriggerReverseFeedbackFresh = false;
 
     Feedback_Update();
 }
@@ -378,6 +385,142 @@ void Gimbal_Ctrl::Launcher_Behaviour(void)
     }
 }
 
+void Gimbal_Ctrl::Trigger_Jam_Control(bool trigger_feedback_ready)
+{
+    const uint32_t now = xTaskGetTickCount();
+    const float forward_speed = TRIGGER_MOTOR_REVERSE * TRIGGER_SHOOT_FREQUENCY
+        * 60.0f / TRIGGER_ONCE_SHOOT_NUM * TRIGGER_REDUCTION_RATIO;
+    const bool shoot_enabled = Flags.Fric_Flag && Flags.Shoot_Flag && Flags.Heat_Allow_Flag;
+    const bool forward_allowed = shoot_enabled && Flags.Fric_Ready_Flag && trigger_feedback_ready;
+    const bool jam_feedback_fresh = trigger_feedback_ready
+        && (now - Message.ShooterFeedbackTick[2]) <= pdMS_TO_TICKS(TRIGGER_JAM_FEEDBACK_MAX_AGE_MS);
+    Trigger.speed_set = 0.0f;
+
+    // 关闭发射时取消当前退弹；无力模式由 Launcher_Reset() 清除状态。
+    if (!shoot_enabled)
+    {
+        if (TriggerJamState != TRIGGER_JAM_IDLE)
+        {
+            PID.Clear(&Trigger.speed_pid);
+        }
+        TriggerJamState = TRIGGER_JAM_IDLE;
+        TriggerLowSpeedTiming = false;
+        TriggerReverseFeedbackFresh = false;
+        return;
+    }
+
+    // 正转仍受摩擦轮到速和拨弹反馈联锁；已开始的退弹按角度或超时结束。
+    if (!forward_allowed && TriggerJamState != TRIGGER_JAM_REVERSE
+        && TriggerJamState != TRIGGER_JAM_SETTLE)
+    {
+        if (TriggerJamState == TRIGGER_JAM_FORWARD)
+        {
+            PID.Clear(&Trigger.speed_pid);
+        }
+        TriggerJamState = TRIGGER_JAM_IDLE;
+        TriggerLowSpeedTiming = false;
+        return;
+    }
+
+    if (TriggerJamState == TRIGGER_JAM_IDLE)
+    {
+        TriggerJamState = TRIGGER_JAM_FORWARD;
+        TriggerJamStateTick = now;
+        TriggerLowSpeedTiming = false;
+    }
+
+    switch (TriggerJamState)
+    {
+    case TRIGGER_JAM_FORWARD:
+        Trigger.speed_set = forward_speed;
+        if (!jam_feedback_fresh)
+        {
+            TriggerLowSpeedTiming = false;
+            break;
+        }
+        // 起转后才判卡弹；连续低速 100 ms，瞬时速度跌落不会触发。
+        if ((now - TriggerJamStateTick) >= pdMS_TO_TICKS(TRIGGER_JAM_START_GRACE_MS))
+        {
+            if (TRIGGER_MOTOR_REVERSE * Trigger.speed < TRIGGER_JAM_LOW_SPEED_RPM)
+            {
+                if (!TriggerLowSpeedTiming)
+                {
+                    TriggerLowSpeedTick = now;
+                    TriggerLowSpeedTiming = true;
+                }
+                else if ((now - TriggerLowSpeedTick) >= pdMS_TO_TICKS(TRIGGER_JAM_CONFIRM_MS))
+                {
+                    TriggerLowSpeedTiming = false;
+                    PID.Clear(&Trigger.speed_pid);
+                    TriggerJamState = TRIGGER_JAM_REVERSE;
+                    TriggerJamStateTick = now;
+                    TriggerReverseLastEcd = Trigger.measure->ecd;
+                    TriggerReverseEcdTravel = 0;
+                    TriggerReverseFeedbackFresh = true;
+                    Trigger.speed_set = -TRIGGER_MOTOR_REVERSE
+                        * TRIGGER_JAM_REVERSE_SPEED_RPM;
+                }
+            }
+            else
+            {
+                TriggerLowSpeedTiming = false;
+            }
+        }
+        break;
+
+    case TRIGGER_JAM_REVERSE:
+    {
+        // 8192 ECD 为电机转子一圈；反馈中断时继续定时反转，不累计旧角度。
+        if (!jam_feedback_fresh)
+        {
+            TriggerReverseFeedbackFresh = false;
+        }
+        else if (!TriggerReverseFeedbackFresh)
+        {
+            TriggerReverseLastEcd = Trigger.measure->ecd;
+            TriggerReverseFeedbackFresh = true;
+        }
+        else
+        {
+            int32_t delta = (int32_t)Trigger.measure->ecd - (int32_t)TriggerReverseLastEcd;
+            if (delta > 4096) delta -= 8192;
+            else if (delta < -4096) delta += 8192;
+            TriggerReverseLastEcd = Trigger.measure->ecd;
+            TriggerReverseEcdTravel += TRIGGER_MOTOR_REVERSE > 0.0f ? -delta : delta;
+        }
+
+        const int32_t reverse_goal_ecd = (int32_t)(8192.0f * TRIGGER_REDUCTION_RATIO
+            * TRIGGER_JAM_REVERSE_SLOT_FRACTION / TRIGGER_ONCE_SHOOT_NUM);
+        if (TriggerReverseEcdTravel >= reverse_goal_ecd
+            || (now - TriggerJamStateTick) >= pdMS_TO_TICKS(TRIGGER_JAM_REVERSE_TIMEOUT_MS))
+        {
+            TriggerJamState = TRIGGER_JAM_SETTLE;
+            TriggerJamStateTick = now;
+            PID.Clear(&Trigger.speed_pid);
+        }
+        else
+        {
+            Trigger.speed_set = -TRIGGER_MOTOR_REVERSE * TRIGGER_JAM_REVERSE_SPEED_RPM;
+        }
+        break;
+    }
+
+    case TRIGGER_JAM_SETTLE:
+        if ((now - TriggerJamStateTick) >= pdMS_TO_TICKS(TRIGGER_JAM_SETTLE_MS))
+        {
+            TriggerJamState = forward_allowed ? TRIGGER_JAM_FORWARD : TRIGGER_JAM_IDLE;
+            TriggerJamStateTick = now;
+            TriggerLowSpeedTiming = false;
+            Trigger.speed_set = forward_allowed ? forward_speed : 0.0f;
+            PID.Clear(&Trigger.speed_pid);
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
 void Gimbal_Ctrl::Launcher_Control(void)
 {
     // CAN3 通信状态：
@@ -443,24 +586,19 @@ void Gimbal_Ctrl::Launcher_Control(void)
         }
     }
 
-    // 最终拨弹许可由五道条件共同决定：
+    // 正转拨弹许可由五道条件共同决定，卡弹恢复由状态机管理：
     // Fric_Flag，已经打开摩擦轮；
     // Shoot_Flag，把左拨杆拨到上挡，请求发射；
     // Fric_Ready_Flag，两颗摩擦轮已经达到目标速度并连续稳定 100 ms；
     // Heat_Allow_Flag：预留的裁判系统热量许可。当前没有裁判系统，初始化后保持 true；
     // trigger_feedback_ready，拨弹盘电机在线标志位；
-    if (Flags.Fric_Flag && Flags.Shoot_Flag && Flags.Fric_Ready_Flag
-        && Flags.Heat_Allow_Flag && trigger_feedback_ready)
-    {
-        Trigger.speed_set = TRIGGER_MOTOR_REVERSE * TRIGGER_SHOOT_FREQUENCY
-                          * 60.0f / TRIGGER_ONCE_SHOOT_NUM * TRIGGER_REDUCTION_RATIO;
-    }
-    else
-    {
-        Trigger.speed_set = 0.0f;
-    }
+    Trigger_Jam_Control(trigger_feedback_ready);
 
-    if (trigger_feedback_ready)
+    const bool trigger_output_allowed = Flags.Fric_Flag && Flags.Shoot_Flag
+        && Flags.Heat_Allow_Flag
+        && (TriggerJamState == TRIGGER_JAM_REVERSE
+            || (Flags.Fric_Ready_Flag && trigger_feedback_ready));
+    if (trigger_output_allowed)
     {
         PID.Calc(&Trigger.speed_pid, Trigger.speed, Trigger.speed_set);
         Trigger.give_current = (int16_t)fp32_constrain(
@@ -486,6 +624,13 @@ void Gimbal_Ctrl::Launcher_Reset(void)
     PID.Clear(&Fric1.speed_pid);
     PID.Clear(&Fric2.speed_pid);
     PID.Clear(&Trigger.speed_pid);
+    TriggerJamState = TRIGGER_JAM_IDLE;
+    TriggerJamStateTick = 0U;
+    TriggerLowSpeedTick = 0U;
+    TriggerLowSpeedTiming = false;
+    TriggerReverseLastEcd = 0U;
+    TriggerReverseEcdTravel = 0;
+    TriggerReverseFeedbackFresh = false;
 }
 
 float Gimbal_Ctrl::GetRelativeYawRad(void) const

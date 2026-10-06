@@ -2,7 +2,6 @@
 #include "arm_math.h"
 
 /*
- *
  *                        ::
  *                       :;J7, :,                        ::;7:
  *                       ,ivYi, ,                       ;LLLFS:

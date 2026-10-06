@@ -89,6 +89,14 @@ enum gimbal_mode_e
     GIMBAL_REMOTE_CONTROL,
 };
 
+enum trigger_jam_state_e
+{
+    TRIGGER_JAM_IDLE = 0,
+    TRIGGER_JAM_FORWARD,
+    TRIGGER_JAM_REVERSE,
+    TRIGGER_JAM_SETTLE,
+};
+
 class Gimbal_Ctrl : public Statistic, public ValidData
 {
 public:
@@ -123,11 +131,19 @@ public:
 private:
     float LargeYawZeroRad;            // 大 Yaw 对正底盘时的 DM4310 编码零点
     uint16_t SmallYawZeroEcd;         // 小 Yaw 对正大 Yaw 时的 GM6020 ECD 零点
+    trigger_jam_state_e TriggerJamState; // 拨弹盘卡弹恢复状态
+    uint32_t TriggerJamStateTick;       // 当前状态开始时刻
+    uint32_t TriggerLowSpeedTick;       // 低速持续计时起点
+    bool TriggerLowSpeedTiming;
+    uint16_t TriggerReverseLastEcd;     // 反转编码器上次采样
+    int32_t TriggerReverseEcdTravel;    // 已反转的转子编码器计数
+    bool TriggerReverseFeedbackFresh;   // 反馈恢复后先重新同步编码器
     static float Deadband(int16_t input, int16_t deadband); // DR16 死区
     static float WrapEcd(float ecd);                        // ECD -> [-4096, 4096]
     static float RelativeDMToDeg(float angle, float zero);  // DM rad -> 相对角 deg
     void Launcher_Behaviour(void);
     void Launcher_Control(void);
+    void Trigger_Jam_Control(bool trigger_feedback_ready);
     void Launcher_Reset(void);
     void RecoverDmMotors(void);
 };

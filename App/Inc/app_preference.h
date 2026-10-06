@@ -80,7 +80,7 @@
 #define GIMBAL_YAW_RC_SENSITIVITY           0.00015f
 #define GIMBAL_PITCH_RC_SENSITIVITY         0.00010f
 // 键鼠模式的鼠标位移为每帧增量，单位 deg/count；大位移单帧限幅。
-#define GIMBAL_MOUSE_YAW_SENSITIVITY        0.01f
+#define GIMBAL_MOUSE_YAW_SENSITIVITY        0.02f
 #define GIMBAL_MOUSE_PITCH_SENSITIVITY      0.01f
 #define GIMBAL_MOUSE_MAX_DELTA              200.0f
 #define GIMBAL_CHASSIS_WZ_FEEDFORWARD       (-1.0f)
@@ -156,6 +156,16 @@
 #define TRIGGER_SPEED_PID_MAX_OUT             9000.0f
 #define TRIGGER_SPEED_PID_MAX_IOUT            5000.0f
 #define TRIGGER_SPEED_PID_BAND_I              3000.0f
+
+// 拨弹盘卡弹检测与退弹；转速均为电机转子 RPM。
+#define TRIGGER_JAM_LOW_SPEED_RPM              675.0f
+#define TRIGGER_JAM_START_GRACE_MS             150U
+#define TRIGGER_JAM_CONFIRM_MS                 100U
+#define TRIGGER_JAM_FEEDBACK_MAX_AGE_MS         20U
+#define TRIGGER_JAM_REVERSE_SPEED_RPM          1350.0f
+#define TRIGGER_JAM_REVERSE_SLOT_FRACTION         0.5f
+#define TRIGGER_JAM_REVERSE_TIMEOUT_MS         300U
+#define TRIGGER_JAM_SETTLE_MS                   50U
 
 
 // 遥控速度映射使用固定上限，不随功率板反馈变化。
