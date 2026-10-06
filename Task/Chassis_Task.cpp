@@ -53,11 +53,11 @@ void Chassis_Task(void *argument)
 	{
 		//状态机切换
 		Chassis.Behaviour_Mode();
-		//外设数据反馈更新
+		//外设数据反馈更新，正运动学解算
 		Chassis.Feedback_Update();
-		//速度矢量参考系转换，获得底盘中心目标速度
+		//遥控映射，摆线小陀螺，速度矢量参考系转换
 		Chassis.Control();
-		//逆解算与PID计算
+		//逆解算与3508 PID计算
 		Chassis.Control_loop();
 		
 
@@ -248,7 +248,7 @@ void Chassis_Ctrl::RC_to_Control(fp32 *vx_set, fp32 *vy_set)
 		*vx_set = 0.0f;
 		*vy_set = 0.0f;
 
-		// 按实车方向修正 WASD 输入：W 前、S 后、A 左、D 右。
+		// 修正 WASD 输入方向：W 前、S 后、A 左、D 右。
 		if ((RC_Ptr->key.v & KEY_PRESSED_OFFSET_W) && !(RC_Ptr->key.v & KEY_PRESSED_OFFSET_S))
 		{
 			*vx_set = -CHASSIS_RC_MAX_VX_MPS;

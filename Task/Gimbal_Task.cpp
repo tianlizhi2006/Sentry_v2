@@ -18,9 +18,13 @@ void Gimbal_Task(void *argument)
     for (;;)
     {
         vTaskDelayUntil(&last_wake_time, GIMBAL_CONTROL_TIME_MS);
+        //电机数据反馈与更新，与双yaw位置误差
         Gimbal.Feedback_Update();
+        //云台与发射机构状态机模式切换
         Gimbal.Behaviour_Mode();
+        //云台与发射机构控制，PID计算
         Gimbal.Control();
+        //电流与力矩发送，达妙电机使能检查
         Gimbal.Send();
     }
 }
@@ -125,7 +129,7 @@ void Gimbal_Ctrl::Feedback_Update(void)
     SmallYaw.speed = Message.GimbalGyro.Yaw_speed;
 
 	
-    //IMU 的 Pitch 正方向取反。
+    //IMU 的 Pitch 方向处理
     Pitch.angle = -Message.GimbalGyro.Pitch_angle;
     Pitch.speed = -Message.GimbalGyro.Pitch_speed;
 
@@ -165,6 +169,7 @@ void Gimbal_Ctrl::Behaviour_Mode(void)
         Initialized = false;
         Mode = GIMBAL_NO_MOVE;
     }
+    // 如果遥控器数据错误或右拨杆打到最下方，则进入无力模式。
     else if (RC_data_is_error(RC_Ptr) || switch_is_down(RC_Ptr->rc.s[GIMBAL_RIGHT_SWITCH])
         || Chassis.KeyboardNoForce)
     {
@@ -190,6 +195,7 @@ void Gimbal_Ctrl::Behaviour_Mode(void)
         PID.Clear(&Pitch.speed_pid);
     }
 
+    //
     Launcher_Behaviour();
 }
 
@@ -206,6 +212,7 @@ void Gimbal_Ctrl::Control(void)
         LargeYaw.torque_set = 0.0f;
         SmallYaw.give_current = 0;
         Pitch.torque_set = 0.0f;
+        //发射机构pid,与力矩清零
         Launcher_Reset();
         return;
     }
@@ -282,6 +289,7 @@ void Gimbal_Ctrl::Control(void)
     PID.Calc(&Pitch.speed_pid, Pitch.speed, Pitch.position_pid.out);
     Pitch.torque_set = Pitch.speed_pid.out + shit;
 
+    //发弹机构控制，五个标志位全部满足才允许输出
     Launcher_Control();
 
 }
@@ -318,6 +326,7 @@ void Gimbal_Ctrl::RecoverDmMotors(void)
 
 void Gimbal_Ctrl::Send(void)
 {
+    //达妙电机state为零重发使能帧
     RecoverDmMotors();
     // 无力模式发送显式零指令，避免保留上一周期输出。
     if (Mode == GIMBAL_NO_MOVE)
@@ -342,21 +351,30 @@ void Gimbal_Ctrl::Send(void)
 
 void Gimbal_Ctrl::Launcher_Behaviour(void)
 {
+    //左拨杆中档时为真
     Flags.Fric_Flag = false;
+    //左拨杆上档时为真
     Flags.Shoot_Flag = false;
 
+    //当两边拨杆都上档时进入键鼠模式
     const bool mouse_mode = switch_is_up(RC_Ptr->rc.s[GIMBAL_RIGHT_SWITCH])
         && switch_is_up(RC_Ptr->rc.s[GIMBAL_LEFT_SWITCH]);
+
+
     const bool f_pressed = (RC_Ptr->key.v & KEY_PRESSED_OFFSET_F) != 0;
+
     if (Mode != GIMBAL_REMOTE_CONTROL || !mouse_mode)
     {
         FricKeyLatched = false;
     }
+
+    //记录上一次按键状态，实现按一次切换状态
     else if (f_pressed && !FricKeyWasPressed)
     {
         FricKeyLatched = !FricKeyLatched;
     }
     FricKeyWasPressed = f_pressed;
+
 
     if (Mode != GIMBAL_REMOTE_CONTROL)
     {
@@ -592,7 +610,8 @@ void Gimbal_Ctrl::Launcher_Control(void)
     // Fric_Ready_Flag，两颗摩擦轮已经达到目标速度并连续稳定 100 ms；
     // Heat_Allow_Flag：预留的裁判系统热量许可。当前没有裁判系统，初始化后保持 true；
     // trigger_feedback_ready，拨弹盘电机在线标志位；
-    Trigger_Jam_Control(trigger_feedback_ready);
+
+    Trigger_Jam_Control(trigger_feedback_ready);  //拨弹盘卡弹处理
 
     const bool trigger_output_allowed = Flags.Fric_Flag && Flags.Shoot_Flag
         && Flags.Heat_Allow_Flag

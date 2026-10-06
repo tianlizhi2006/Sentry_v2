@@ -80,7 +80,7 @@
 #define GIMBAL_YAW_RC_SENSITIVITY           0.00015f
 #define GIMBAL_PITCH_RC_SENSITIVITY         0.00010f
 // 键鼠模式的鼠标位移为每帧增量，单位 deg/count；大位移单帧限幅。
-#define GIMBAL_MOUSE_YAW_SENSITIVITY        0.02f
+#define GIMBAL_MOUSE_YAW_SENSITIVITY        0.017f
 #define GIMBAL_MOUSE_PITCH_SENSITIVITY      0.01f
 #define GIMBAL_MOUSE_MAX_DELTA              200.0f
 #define GIMBAL_CHASSIS_WZ_FEEDFORWARD       (-1.0f)
@@ -171,8 +171,8 @@
 // 遥控速度映射使用固定上限，不随功率板反馈变化。
 #define CHASSIS_RC_MAX_VX_MPS           1.61f
 #define CHASSIS_RC_MAX_VY_MPS           1.29f
-#define CHASSIS_LITTLE_TOP_MAX_WZ_RADPS 6.0f
-#define CHASSIS_LITTLE_TOP_MIN_WZ_RADPS 3.5f
+#define CHASSIS_LITTLE_TOP_MAX_WZ_RADPS 7.0f
+#define CHASSIS_LITTLE_TOP_MIN_WZ_RADPS 5.0f
 #define CHASSIS_LITTLE_TOP_PERIOD_MS    1800U
 #define CHASSIS_LITTLE_TOP_MAX_ACCEL_RADPS2 6.0f
 
@@ -203,7 +203,7 @@
 #define NORMAL_MAX_CHASSIS_SPEED_X 10.0f
 //底盘运动过程最大平移速度
 #define NORMAL_MAX_CHASSIS_SPEED_Y 10.0f
-// 哨兵四个 3508 完全对称，先使用同一组保守速度环参数进行测试。
+// 哨兵四个 3508 使用同一组速度环参数。
 #define CHASSIS_3508_SPEED_PID_KP       5500.0f
 #define CHASSIS_3508_SPEED_PID_KI       0.2f
 #define CHASSIS_3508_SPEED_PID_KD       0.0f
