@@ -97,6 +97,9 @@ void Chassis_Ctrl::Chassis_Init(void)
 	KeyboardNoForce = false;
 	LastCPressed = false;
 	LastEPressed = false;
+	LittleTopCycleStartTick = 0U;
+	LittleTopCycleActive = false;
+	LittleTopWzCommand = 0.0f;
 
 	Chassis_Task_DWT_dt = 0;
 	Chassis_Task_DWT_Count = 0;
@@ -216,6 +219,11 @@ void Chassis_Ctrl::Behaviour_Mode(void)
 	{
 		Mode = CHASSIS_NORMAL_MODE;
 	}
+	if (Mode != CHASSIS_LITTLE_TOP)
+	{
+		LittleTopCycleActive = false;
+		LittleTopWzCommand = 0.0f;
+	}
 	Flag_Behaviour_Control();
 }
 
@@ -291,12 +299,39 @@ void Chassis_Ctrl::Behaviour_Control(fp32 *vx_set, fp32 *vy_set, fp32 *angle_set
 	}
 	else if (Mode == CHASSIS_LITTLE_TOP)
 	{
-        //1980为660的三倍
-        //当遥控器平移通道值打满时，仍保留小陀螺1/3的旋转速度
-		const fp32 turn_weight = 1.0f
-			- (abs(RC_Ptr->rc.ch[CHASSIS_X_CHANNEL]) + abs(RC_Ptr->rc.ch[CHASSIS_Y_CHANNEL])) / 1980.0f;
+		if (!LittleTopCycleActive)
+		{
+			LittleTopCycleStartTick = xTaskGetTickCount();
+			LittleTopCycleActive = true;
+		}
+
+		// 每个半周使用一个摆线速度波包：前半周 +A，后半周 -A/2。
+		// 周期交界处波包和斜率均为零，切换半周时不会跳变目标角速度。
+		const uint32_t cycle_ticks = pdMS_TO_TICKS(CHASSIS_LITTLE_TOP_PERIOD_MS);
+		const uint32_t phase_ticks = (xTaskGetTickCount() - LittleTopCycleStartTick) % cycle_ticks;
+		const fp32 half_ticks = (fp32)cycle_ticks * 0.5f;
+		const bool first_half = phase_ticks < half_ticks;
+		const fp32 u = first_half ? (fp32)phase_ticks / half_ticks
+			: ((fp32)phase_ticks - half_ticks) / half_ticks;
+		const fp32 pulse = 0.5f * (1.0f - arm_cos_f32(2.0f * PI * u));
+		const fp32 amplitude = (CHASSIS_LITTLE_TOP_MAX_WZ_RADPS
+			- CHASSIS_LITTLE_TOP_MIN_WZ_RADPS) * (2.0f / 3.0f);
+		const fp32 center_speed = CHASSIS_LITTLE_TOP_MAX_WZ_RADPS - amplitude;
+		const fp32 cycloidal_speed = first_half ? center_speed + amplitude * pulse
+			: center_speed - 0.5f * amplitude * pulse;
+
+		// 1980 = 3 × 660；双平移通道打满时仍保留 1/3 的旋转权重。
+		const fp32 turn_weight = fp32_constrain(1.0f
+			- (abs(RC_Ptr->rc.ch[CHASSIS_X_CHANNEL])
+			+ abs(RC_Ptr->rc.ch[CHASSIS_Y_CHANNEL])) / 1980.0f,
+			1.0f / 3.0f, 1.0f);
 		RC_to_Control(vx_set, vy_set);
-		*angle_set = CHASSIS_LITTLE_TOP_MAX_WZ_RADPS * turn_weight;
+		const fp32 target_wz = cycloidal_speed * turn_weight;
+		const fp32 max_step = CHASSIS_LITTLE_TOP_MAX_ACCEL_RADPS2
+			* CHASSIS_CONTROL_TIME_MS * 0.001f;
+		LittleTopWzCommand += fp32_constrain(target_wz - LittleTopWzCommand,
+			-max_step, max_step);
+		*angle_set = LittleTopWzCommand;
 	}
 }
 
@@ -307,6 +342,8 @@ void Chassis_Ctrl::Control(void)
 	Behaviour_Control(&vx_set, &vy_set, &angle_set);
 	if (Mode == CHASSIS_NO_MOVE || !Gimbal.Initialized)
 	{
+		LittleTopCycleActive = false;
+		LittleTopWzCommand = 0.0f;
 		Velocity.vx_set = 0.0f;
 		Velocity.vy_set = 0.0f;
 		Velocity.wz_set = 0.0f;

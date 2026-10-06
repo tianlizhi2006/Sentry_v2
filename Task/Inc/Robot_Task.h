@@ -119,6 +119,9 @@ public:
 	bool KeyboardNoForce;        // 键鼠模式下 E 键切换整车无力
 	bool LastCPressed;
 	bool LastEPressed;
+	uint32_t LittleTopCycleStartTick;
+	bool LittleTopCycleActive;
+	fp32 LittleTopWzCommand;
 	
 	void Chassis_Init(void);
 	void Feedback_Update(void);
