@@ -304,7 +304,7 @@ void Chassis_Ctrl::Behaviour_Control(fp32 *vx_set, fp32 *vy_set, fp32 *angle_set
 			LittleTopCycleActive = true;
 		}
 
-		// 每个半周使用一个摆线速度波包：前半周 +A，后半周 -A/2。
+		// 每个半周使用一个摆线速度波包：前半周 +A，后半周 -2A/3。
 		// 周期交界处波包和斜率均为零，切换半周时不会跳变目标角速度。
 		const uint32_t cycle_ticks = pdMS_TO_TICKS(CHASSIS_LITTLE_TOP_PERIOD_MS);
 		const uint32_t phase_ticks = (xTaskGetTickCount() - LittleTopCycleStartTick) % cycle_ticks;
@@ -314,10 +314,11 @@ void Chassis_Ctrl::Behaviour_Control(fp32 *vx_set, fp32 *vy_set, fp32 *angle_set
 			: ((fp32)phase_ticks - half_ticks) / half_ticks;
 		const fp32 pulse = 0.5f * (1.0f - arm_cos_f32(2.0f * PI * u));
 		const fp32 amplitude = (CHASSIS_LITTLE_TOP_MAX_WZ_RADPS
-			- CHASSIS_LITTLE_TOP_MIN_WZ_RADPS) * (2.0f / 3.0f);
+			- CHASSIS_LITTLE_TOP_MIN_WZ_RADPS)
+			/ (1.0f + CHASSIS_LITTLE_TOP_SECOND_HALF_RATIO);
 		const fp32 center_speed = CHASSIS_LITTLE_TOP_MAX_WZ_RADPS - amplitude;
 		const fp32 cycloidal_speed = first_half ? center_speed + amplitude * pulse
-			: center_speed - 0.5f * amplitude * pulse;
+			: center_speed - CHASSIS_LITTLE_TOP_SECOND_HALF_RATIO * amplitude * pulse;
 
 		// 1980 = 3 × 660；双平移通道打满时仍保留 1/3 的旋转权重。
 		const fp32 turn_weight = fp32_constrain(1.0f
